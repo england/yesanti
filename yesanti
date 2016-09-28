@@ -1,0 +1,43 @@
+#!/bin/bash
+
+docker_force_run() {
+    docker rm -f $CONTAINER_NAME
+    docker run \
+           --detach \
+           --volume $(pwd):/workdir \
+           --interactive \
+           --tty \
+           --name $CONTAINER_NAME \
+           --label main_volume_path=$current_path \
+           $IMAGE_NAME
+}
+
+# TODO: optional debugg logging
+
+readonly CONTAINER_NAME=yeasanti
+readonly IMAGE_NAME=dev
+
+command=$*
+echo "command: $command"
+
+current_path=$(pwd)
+echo "current path: $current_path"
+
+container_id=$(docker ps --filter="name=$CONTAINER_NAME" --quiet)
+echo "existing container id: $container_id"
+
+if [ $container_id ]; then
+    echo "reuse existing container"
+
+    main_volume_path=$(docker inspect --format '{{json .Config.Labels.main_volume_path}}' $container_id)
+    if [ "\"$current_path\"" != $main_volume_path ]; then
+        echo "rerun with new main_volume_path: $current_path"
+        docker stop $container_id
+        docker_force_run
+    fi
+else
+    echo "run new container"
+    docker_force_run
+fi
+
+docker exec -it $CONTAINER_NAME $command
